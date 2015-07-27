@@ -52,6 +52,10 @@ Ubuntu桌面版默认使用Network Manager来管理网络，并使用dnsmasq做D
 	sudo update-rc.d dns-split defaults
 	sudo service dns-split start
 
+5\. 设置DNS
+
+修改/etc/resolv.conf文件，将DNS指向127.0.0.1
+
 # Acknowledgements
 
 This work is inspired by <a href="https://github.com/isnowfy/dns" target="_blank">https://github.com/isnowfy/dns</a> and <a href="https://github.com/goagent/goagent" target="_blank">https://github.com/goagent/goagent</a>.
