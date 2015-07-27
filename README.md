@@ -51,3 +51,8 @@ Ubuntu桌面版默认使用Network Manager来管理网络，并使用dnsmasq做D
 	sudo cp dns-split /etc/init.d
 	sudo update-rc.d dns-split defaults
 	sudo service dns-split start
+
+# Acknowledgements
+
+This work is inspired by <a href="https://github.com/isnowfy/dns" target="_blank">https://github.com/isnowfy/dns</a> and <a href="https://github.com/goagent/goagent" target="_blank">https://github.com/goagent/goagent</a>.
+
