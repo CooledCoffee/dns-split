@@ -1,8 +1,9 @@
 #!/usr/bin/python2.7
 # -*- coding: utf-8 -*-
 from gevent import event, socket
-import dnslib
+from dnslib import DNSRecord
 import gevent
+import time
 
 DOMESTIC_DNS = '223.5.5.5'
 FOREIGN_DNS = '8.8.8.8'
@@ -2553,6 +2554,7 @@ FOREIGN_DOMAINS = [
     'zuola.com',
     'zvereff.com',
     'zyzc9.com',
+    'static.coffee-studio.net',
 ]
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # @UndefinedVariable
 sock.bind(('', 53))
@@ -2573,16 +2575,15 @@ class Cache:
 cache = Cache()
 
 def handle_request(s, data, addr):
-    req = dnslib.DNSRecord.parse(data)
+    req = DNSRecord.parse(data)
     qname = str(req.q.qname)
     print('Resolving "%s" ...' % qname)
     qid = req.header.id
     key = (qname, req.questions[0].qtype)
     result = cache.get(key)
-    if result:
-        result = dnslib.DNSRecord.parse(result)
-        result.header.id = qid
-        s.sendto(result.pack(), addr)
+    if result and time.time() < result[0]:
+        data = repack(result[1], qid, result[0])
+        s.sendto(data, addr)
     else:
         e = event.Event()
         cache.set(qname + 'e', e)
@@ -2590,15 +2591,17 @@ def handle_request(s, data, addr):
         e.wait(60)
         result = cache.get(key)
         if result is not None:
-            result = dnslib.DNSRecord.parse(result)
-            result.header.id = qid
-            s.sendto(result.pack(), addr)
+            data = repack(result[1], qid, result[0])
+            s.sendto(data, addr)
 
 def handle_response(data):
-    req = dnslib.DNSRecord.parse(data)
+    req = DNSRecord.parse(data)
     qname = str(req.q.qname)
     key = (qname, req.questions[0].qtype)
-    cache.set(key, data)
+    min_ttl = min([r.ttl for r in req.rr]) if req.rr else 0
+    expire = time.time() + min_ttl
+    value = (expire, data)
+    cache.set(key, value)
     e = cache.get(qname + 'e')
     cache.remove(qname + 'e')
     if e is not None:
@@ -2606,7 +2609,7 @@ def handle_response(data):
         e.clear()
 
 def handler(s, data, addr):
-    req = dnslib.DNSRecord.parse(data)
+    req = DNSRecord.parse(data)
     if req.header.qr:
         handle_response(data)
     else:
@@ -2617,6 +2620,14 @@ def main():
         data, addr = sock.recvfrom(8192)
         gevent.spawn(handler, sock, data, addr)
         
+def repack(data, qid, expire):
+    now = time.time()
+    record = DNSRecord.parse(data)
+    record.header.id = qid
+    for r in record.rr:
+        r.ttl = int(expire - now)
+    return record.pack()
+    
 def send_request(data, qname):
     qname = qname.rstrip('.')
     for domain in FOREIGN_DOMAINS:
