@@ -2554,7 +2554,13 @@ FOREIGN_DOMAINS = [
     'zuola.com',
     'zvereff.com',
     'zyzc9.com',
-    'static.coffee-studio.net',
+
+    'akamaihd.net',
+    'coffee-studio.net',
+    'facebook.com',
+    'google-analytics.com',
+    'googletagmanager.com',
+    'youtube.com',
 ]
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # @UndefinedVariable
 sock.bind(('', 53))
@@ -2570,29 +2576,30 @@ class Cache:
         self.c[key] = value
         
     def remove(self,key):
-        self.c.pop(key,None)
+        self.c.pop(key, None)
 
 cache = Cache()
 
 def handle_request(s, data, addr):
     req = DNSRecord.parse(data)
     qname = str(req.q.qname)
-    print('Resolving "%s" ...' % qname)
     qid = req.header.id
     key = (qname, req.questions[0].qtype)
     result = cache.get(key)
-    if result and time.time() < result[0]:
+    if result and time.time() < result[0] - 1:
+        print('Resolving @cache "%s" ...' % qname)
         data = repack(result[1], qid, result[0])
         s.sendto(data, addr)
     else:
+        cache.remove(key)
         e = event.Event()
         cache.set(qname + 'e', e)
         send_request(data, qname)
-        e.wait(60)
+        if not e.wait(60):
+            return
         result = cache.get(key)
-        if result is not None:
-            data = repack(result[1], qid, result[0])
-            s.sendto(data, addr)
+        data = repack(result[1], qid, result[0])
+        s.sendto(data, addr)
 
 def handle_response(data):
     req = DNSRecord.parse(data)
@@ -2621,11 +2628,10 @@ def main():
         gevent.spawn(handler, sock, data, addr)
         
 def repack(data, qid, expire):
-    now = time.time()
     record = DNSRecord.parse(data)
     record.header.id = qid
     for r in record.rr:
-        r.ttl = int(expire - now)
+        r.ttl = int(expire - time.time())
     return record.pack()
     
 def send_request(data, qname):
@@ -2636,7 +2642,7 @@ def send_request(data, qname):
             break
     else:
         dns = DOMESTIC_DNS
-    print('Resolving "%s" using "%s" ...' % (qname, dns))
+    print('Resolving @%s "%s" ...' % (dns, qname))
     sock.sendto(data, (dns, 53))
 
 if __name__ == '__main__':
