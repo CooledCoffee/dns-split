@@ -2595,10 +2595,10 @@ def handle_request(s, data, addr):
         e = event.Event()
         cache.set(qname + 'e', e)
         send_request(data, qname)
-        if not e.wait(60):
+        if not e.wait(15):
             return
-        result = cache.get(key)
-        data = repack(result[1], qid, result[0])
+        expire, data = cache.get(key)
+        data = repack(data, qid, expire)
         s.sendto(data, addr)
 
 def handle_response(data):
@@ -2610,10 +2610,9 @@ def handle_response(data):
     value = (expire, data)
     cache.set(key, value)
     e = cache.get(qname + 'e')
-    cache.remove(qname + 'e')
     if e is not None:
         e.set()
-        e.clear()
+        cache.remove(qname + 'e')
 
 def handler(s, data, addr):
     req = DNSRecord.parse(data)
