@@ -2591,7 +2591,6 @@ def handle_request(s, data, addr):
         data = repack(result[1], qid, result[0])
         s.sendto(data, addr)
     else:
-        cache.remove(key)
         e = event.Event()
         cache.set(qname + 'e', e)
         send_request(data, qname)
