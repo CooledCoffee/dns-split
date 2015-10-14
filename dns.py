@@ -1,9 +1,14 @@
 #!/usr/bin/python2.7
 # -*- coding: utf-8 -*-
-from gevent import event, socket
 from dnslib import DNSRecord
+from gevent import event, socket
+from logging import StreamHandler, FileHandler
 import gevent
+import logging
+import os
 import time
+
+log = logging.getLogger()
 
 DOMESTIC_DNS = '223.5.5.5'
 FOREIGN_DNS = '8.8.8.8'
@@ -2581,7 +2586,7 @@ def handle_request(s, data, addr):
         if repacked_data is None:
             del cache[key]
         else:
-            print('Resolved "%s" @cache ...' % key)
+            log.info('Resolved "%s" @cache ...' % key)
             s.sendto(repacked_data, addr)
             return
     
@@ -2589,15 +2594,15 @@ def handle_request(s, data, addr):
     cache[key + '/e'] = e
     start = time.time()
     dns = decide_dns(qname)
-    print('Resolving "%s" @%s ...' % (key, dns))
+    log.info('Resolving "%s" @%s ...' % (key, dns))
     sock.sendto(data, (dns, 53))
     if e.wait(15):
-        print('Resolved "%s" in %d ms.' % (key, (time.time() - start) * 1000))
+        log.info('Resolved "%s" in %d ms.' % (key, (time.time() - start) * 1000))
         expire, data = cache[key]
         data = repack(data, req.header.id, expire)
         s.sendto(data, addr)
     else:
-        print('Failed to resolve %s.' % qname)
+        log.info('Failed to resolve %s.' % qname)
 
 def handle_response(data):
     req = DNSRecord.parse(data)
@@ -2641,6 +2646,20 @@ def decide_dns(qname):
             return FOREIGN_DNS
     else:
         return DOMESTIC_DNS
-        
+    
+def init():
+    log.setLevel(logging.INFO)
+    
+    handler = StreamHandler()
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(logging.Formatter('%(message)s'))
+    log.addHandler(handler)
+    
+    handler = FileHandler(os.path.join(os.path.dirname(__file__), 'dns.log'))
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] [%(process)d:%(threadName)s] [%(name)s:%(funcName)s:%(lineno)d]\n%(message)s'))
+    log.addHandler(handler)
+    
 if __name__ == '__main__':
+    init()
     main()
