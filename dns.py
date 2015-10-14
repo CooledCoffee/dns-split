@@ -2561,6 +2561,8 @@ FOREIGN_DOMAINS = [
     'google-analytics.com',
     'googleadservices.com',
     'googletagmanager.com',
+    'gravatar.com',
+    'wp.com',
     'youtube.com',
 ]
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # @UndefinedVariable
@@ -2573,34 +2575,37 @@ def handle_request(s, data, addr):
     qname = str(req.q.qname)
     key = '%s:%d' % (qname.rstrip('.'), req.questions[0].qtype)
     result = cache.get(key)
-    if result and time.time() < result[0] - 1:
-        print('Resolving "%s" @cache ...' % key)
-        data = repack(result[1], req.header.id, result[0])
+    if result is not None:
+        cache_time, data = result
+        repacked_data = repack(data, req.header.id, cache_time)
+        if repacked_data is None:
+            del cache[key]
+        else:
+            print('Resolved "%s" @cache ...' % key)
+            s.sendto(repacked_data, addr)
+            return
+    
+    e = event.Event()
+    cache[key + '/e'] = e
+    start = time.time()
+    dns = decide_dns(qname)
+    print('Resolving "%s" @%s ...' % (key, dns))
+    sock.sendto(data, (dns, 53))
+    if e.wait(15):
+        print('Resolved "%s" in %d ms.' % (key, (time.time() - start) * 1000))
+        expire, data = cache[key]
+        data = repack(data, req.header.id, expire)
         s.sendto(data, addr)
     else:
-        e = event.Event()
-        cache[key + '/e'] = e
-        start = time.time()
-        dns = decide_dns(qname)
-        print('Resolving "%s" @%s ...' % (key, dns))
-        sock.sendto(data, (dns, 53))
-        if e.wait(15):
-            print('Resolved "%s" in %d ms.' % (key, (time.time() - start) * 1000))
-            expire, data = cache[key]
-            data = repack(data, req.header.id, expire)
-            s.sendto(data, addr)
-        else:
-            print('Failed to resolve %s.' % qname)
+        print('Failed to resolve %s.' % qname)
 
 def handle_response(data):
     req = DNSRecord.parse(data)
     qname = str(req.q.qname)
     key = '%s:%d' % (qname.rstrip('.'), req.questions[0].qtype)
-    min_ttl = min([r.ttl for r in req.rr]) if req.rr else 60
-    expire = time.time() + min_ttl
     e = cache.get(key + '/e')
     if e is not None:
-        cache[key] = (expire, data)
+        cache[key] = (int(time.time()), data)
         e.set()
         del cache[key + '/e']
 
@@ -2616,11 +2621,15 @@ def main():
         data, addr = sock.recvfrom(8192)
         gevent.spawn(handler, sock, data, addr)
         
-def repack(data, qid, expire):
+def repack(data, qid, cache_time):
     record = DNSRecord.parse(data)
     record.header.id = qid
+    now = int(time.time())
     for r in record.rr:
-        r.ttl = int(expire - time.time())
+        ttl = cache_time + r.ttl - now
+        if ttl <= 0:
+            return None
+        r.ttl = ttl
     return record.pack()
 
 def decide_dns(qname):
