@@ -2635,7 +2635,7 @@ def repack(data, qid, cache_time):
 def decide_dns(qname):
     domain = qname.rstrip('.')
     if 'google' in domain:
-        return FOREIGN_DOMAINS
+        return FOREIGN_DNS
     for d in FOREIGN_DOMAINS:
         if d == domain or domain.endswith('.' + d):
             return FOREIGN_DNS
