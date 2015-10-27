@@ -40,12 +40,12 @@ def handle_request(s, data, addr):
     log.info('Resolving "%s" @%s ...' % (key, dns))
     sock.sendto(data, (dns, 53))
     if e.wait(15):
-        log.info('Resolved "%s" in %d ms.' % (key, (time.time() - start) * 1000))
+        log.info('Resolved "%s" @%s in %d ms.' % (key, dns, (time.time() - start) * 1000))
         expire, data = cache[key]
         data = repack(data, req.header.id, expire)
         s.sendto(data, addr)
     else:
-        log.info('Failed to resolve %s.' % qname)
+        log.info('Failed to resolve "%s" @%s.' % (key, dns))
 
 def handle_response(data):
     req = DNSRecord.parse(data)
