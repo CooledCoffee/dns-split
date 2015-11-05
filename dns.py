@@ -18,19 +18,19 @@ sock.bind(('', 53))
 
 cache = {}
 
-def handle_request(s, data, addr):
+def handle_request(data, addr):
     req = DNSRecord.parse(data)
     qname = str(req.q.qname)
     key = '%s:%d' % (qname.rstrip('.'), req.questions[0].qtype)
     result = cache.get(key)
     if result is not None:
-        cache_time, data = result
-        repacked_data = repack(data, req.header.id, cache_time)
+        cache_time, cached_data = result
+        repacked_data = repack(cached_data, req.header.id, cache_time)
         if repacked_data is None:
             del cache[key]
         else:
             log.info('Resolved "%s" @cache ...' % key)
-            s.sendto(repacked_data, addr)
+            sock.sendto(repacked_data, addr)
             return
     
     e = event.Event()
@@ -43,7 +43,7 @@ def handle_request(s, data, addr):
         log.info('Resolved "%s" @%s in %d ms.' % (key, dns, (time.time() - start) * 1000))
         expire, data = cache[key]
         data = repack(data, req.header.id, expire)
-        s.sendto(data, addr)
+        sock.sendto(data, addr)
     else:
         log.info('Failed to resolve "%s" @%s.' % (key, dns))
 
@@ -59,12 +59,12 @@ def handle_response(data):
         e.set()
         del cache[key + '/e']
 
-def handler(s, data, addr):
+def handler(data, addr):
     req = DNSRecord.parse(data)
     if req.header.qr:
         handle_response(data)
     else:
-        handle_request(s, data, addr)
+        handle_request(data, addr)
 
 def main():
     with open(os.path.join(os.path.dirname(__file__), 'foreigns')) as f:
@@ -74,7 +74,7 @@ def main():
                 FOREIGN_DOMAINS.append(line)
     while True:
         data, addr = sock.recvfrom(8192)
-        gevent.spawn(handler, sock, data, addr)
+        gevent.spawn(handler, data, addr)
         
 def repack(data, qid, cache_time):
     record = DNSRecord.parse(data)
@@ -102,7 +102,7 @@ def init():
     
     handler = StreamHandler()
     handler.setLevel(logging.INFO)
-    handler.setFormatter(logging.Formatter('%(message)s'))
+    handler.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] [%(process)d:%(threadName)s] [%(name)s:%(funcName)s:%(lineno)d]\n%(message)s'))
     log.addHandler(handler)
     
     handler = FileHandler(os.path.join(os.path.dirname(__file__), 'dns.log'))
