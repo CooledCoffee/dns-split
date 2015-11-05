@@ -48,9 +48,11 @@ def handle_request(s, data, addr):
         log.info('Failed to resolve "%s" @%s.' % (key, dns))
 
 def handle_response(data):
-    req = DNSRecord.parse(data)
-    qname = str(req.q.qname)
-    key = '%s:%d' % (qname.rstrip('.'), req.questions[0].qtype)
+    resp = DNSRecord.parse(data)
+    if len(resp.rr) == 0:
+        return
+    domain = str(resp.q.qname).rstrip('.')
+    key = '%s:%d' % (domain, resp.questions[0].qtype)
     e = cache.get(key + '/e')
     if e is not None:
         cache[key] = (int(time.time()), data)
