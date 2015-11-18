@@ -18,6 +18,10 @@ sock.bind(('', 53))
 
 cache = {}
 
+def calc_key(domain, type):
+    key = '%s:%d' % (domain, type)
+    return key.lower()
+
 def get_from_cache(key, header_id):
     cached_time, cached_data = cache.get(key, (None, None))
     if cached_data is None:
@@ -31,7 +35,7 @@ def get_from_cache(key, header_id):
 def handle_request(data, addr):
     req = DNSRecord.parse(data)
     domain = str(req.q.qname).rstrip('.')
-    key = '%s:%d' % (domain, req.questions[0].qtype)
+    key = calc_key(domain, req.questions[0].qtype)
     resp = get_from_cache(key, req.header.id)
     if resp is not None:
         log.info('Resolved "%s" @cache ...' % key)
@@ -58,7 +62,7 @@ def handle_response(data):
     if len(resp.rr) == 0:
         return
     domain = str(resp.q.qname).rstrip('.')
-    key = '%s:%d' % (domain, resp.questions[0].qtype)
+    key = calc_key(domain, resp.questions[0].qtype)
     e = cache.get(key + '/e')
     if e is not None:
         cache[key] = (int(time.time()), data)
