@@ -30,7 +30,6 @@ def clean_cache():
         if now - cached_time > CACHE_EXPIRE_SECONDS:
             del cache[key]
             cnt += 1
-            log.debug('Removed "%s" from cache.' % key)
     log.debug('Cleaned %d items from cache.' % cnt)
 
 def decide_dns(domain):
