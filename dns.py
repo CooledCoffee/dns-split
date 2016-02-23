@@ -53,6 +53,7 @@ def get_from_cache(key, header_id):
     return repacked_data
 
 def handle(req, addr):
+    start = time.time()
     record = parse(req)
     key = calc_key(record.q.domain, record.questions[0].qtype)
     resp = get_from_cache(key, record.header.id)
@@ -71,7 +72,8 @@ def handle(req, addr):
     else:
         dns = 'cache'
     sock.sendto(resp, addr)
-    log.info('Resolved "%s" @%s.' % (key, dns))
+    millis = int((time.time() - start) * 1000)
+    log.info('Resolved "%s" @%s (%dms).' % (key, dns, millis))
 
 def init():
     init_logging()
@@ -94,7 +96,7 @@ def init_logging():
     log.addHandler(handler)
     
     handler = FileHandler(os.path.join(os.path.dirname(__file__), 'dns.log'))
-    handler.setLevel(logging.INFO)
+    handler.setLevel(logging.DEBUG)
     handler.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] [%(funcName)s:%(lineno)d]\n%(message)s'))
     log.addHandler(handler)
     
