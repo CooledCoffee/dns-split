@@ -23,6 +23,12 @@ def calc_key(domain, type):
     key = '%s:%d' % (domain, type)
     return key.lower()
 
+def check_resp(key, data):
+    record = DNSRecord.parse(data)
+    if len(record.rr) == 0:
+        log.warn('No record returned for "%s".' % key)
+    return len(record.rr) != 0
+
 def clean_cache():
     now = time.time()
     cnt = 0
@@ -67,7 +73,8 @@ def handle(req, addr):
             log.warn('Timeout to receive "%s" from "%s".' % (key, dns))
             return
         resp = out_sock.recv(BUFFER_SIZE)
-        cache[key] = (int(time.time()), resp)
+        if check_resp(key, resp):
+            cache[key] = (int(time.time()), resp)
     else:
         dns = 'cache'
     sock.sendto(resp, addr)
